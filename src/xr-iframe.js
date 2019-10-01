@@ -9,6 +9,26 @@ import symbols from './symbols.js';
 
 import GlobalContext from './GlobalContext.js';
 
+function parseExtents(s) {
+  const regex = /(?:\[([0-9]+)\s+([0-9]+)\s+([0-9]+)\s+([0-9]+)\]|([0-9]+)\s+([0-9]+))\s*/g;
+  const result = [];
+  let match;
+  while (match = regex.exec(s)) {
+    if (match[1]) {
+      const x1 = parseInt(match[1], 10);
+      const y1 = parseInt(match[2], 10);
+      const x2 = parseInt(match[3], 10);
+      const y2 = parseInt(match[4], 10);
+      result.push([x1, y1, x2, y2]);
+    } else if (match[5]) {
+      const x = parseInt(match[5], 10);
+      const y = parseInt(match[6], 10);
+      result.push([x, y, x, y]);
+    }
+  }
+  return result;
+}
+
 class XRIFrame extends HTMLElement {
   constructor() {
     super();
@@ -16,6 +36,8 @@ class XRIFrame extends HTMLElement {
     this.contentWindow = null;
     this.xrOffset = new XRRigidTransform();
     this._highlight = null;
+    this._extents = [];
+    this._loadFactor = Infinity;
   }
   async attributeChangedCallback(name, oldValue, newValue) {
     await GlobalContext.loadPromise;
@@ -127,6 +149,13 @@ class XRIFrame extends HTMLElement {
           this.highlight = highlight;
         }
       }
+    } else if (name === 'extents') {
+      this.extents = parseExtents(newValue);
+    } else if (name === 'load-factor') {
+      const loadFactor = parseFloat(newValue);
+      if (isFinite(loadFactor)) {
+        this.loadFactor = loadFactor;
+      }
     }
   }
   static get observedAttributes() {
@@ -136,6 +165,8 @@ class XRIFrame extends HTMLElement {
       'orientation',
       'scale',
       'highlight',
+      'extents',
+      'load-factor',
     ];
   }
   get src() {
@@ -206,6 +237,20 @@ class XRIFrame extends HTMLElement {
     }
   }
 
+  get extents() {
+    return this._extents;
+  }
+  set extents(extents) {
+    this._extents = extents;
+  }
+
+  get loadFactor() {
+    return this._loadFactor;
+  }
+  set loadFactor(loadFactor) {
+    this._loadFactor = loadFactor;
+  }
+
   postMessage(m, transfers) {
     this.contentWindow.postMessage(m, transfers);
   }
@@ -214,5 +259,6 @@ class XRIFrame extends HTMLElement {
   }
 }
 customElements.define('xr-iframe', XRIFrame);
+XRIFrame.parseExtents = parseExtents;
 
 export default XRIFrame;

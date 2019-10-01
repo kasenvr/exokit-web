@@ -1,5 +1,4 @@
 import path from '../modules/path-browserify.js';
-// import util from '../modules/util.js';
 
 // import {EventTarget, KeyboardEvent, SpatialEvent} from './Event.js';
 import {CanvasRenderingContext2D, WebGLRenderingContext, WebGL2RenderingContext} from './Graphics.js';
@@ -24,7 +23,7 @@ import symbols from './symbols.js';
 
 import * as XR from './XR.js';
 import utils from './utils.js';
-const {_elementGetter, _elementSetter} = utils;
+const {_elementGetter, _elementSetter, _replaceDocument} = utils;
 
 import XRIFrame from './xr-iframe.js';
 import XRSite from './xr-site.js';
@@ -86,8 +85,44 @@ class XREngineTemplate extends HTMLTemplateElement {
       for (let i = 0; i < childNodes.length; i++) {
         const childNode = childNodes[i];
         if (childNode.nodeType === Node.ELEMENT_NODE) {
-          const xrIframe = document.importNode(childNode, true);
-          this.insertAdjacentElement('afterend', xrIframe);
+          let node = document.importNode(childNode, true);
+          let scripts = node.matches('script') ? [node] : Array.from(node.querySelectorAll('script'));
+          scripts = scripts.map(oldScript => {
+            const {src, innerHTML} = oldScript;
+            const script = document.createElement('script');
+            if (src) {
+              script.spec = {
+                type: 'src',
+                data: src,
+              };
+            } else {
+              script.spec = {
+                type: 'innerHTML',
+                data: innerHTML,
+              };
+            }
+            if (oldScript.parentNode) {
+              oldScript.parentNode.replaceChild(script, oldScript);
+            }
+            if (oldScript === node) {
+              node = script;
+            }
+            return script;
+          });
+          this.insertAdjacentElement('afterend', node);
+          for (let i = 0; i < scripts.length; i++) {
+            const script = scripts[i];
+            const p = new Promise((accept, reject) => {
+              script.addEventListener('load', accept);
+              script.addEventListener('error', reject);
+            });
+            if (script.spec.type === 'src') {
+              script.src = script.spec.data;
+            } else if (script.spec.type === 'innerHTML') {
+              script.innerHTML = script.spec.data;
+            }
+            await p;
+          }
         }
       }
     })();
@@ -482,6 +517,7 @@ const _fetchText = src => fetch(src)
       if (context._exokitBlendEnabled) {
         if (highlight) {
           context._exokitBlendEnabled(false);
+          context._exokitEnable(context.BLEND);
           context._exokitBlendFuncSeparate(context.CONSTANT_COLOR, context.ONE_MINUS_SRC_ALPHA, context.CONSTANT_COLOR, context.ONE_MINUS_SRC_ALPHA);
           context._exokitBlendEquationSeparate(context.FUNC_ADD, context.FUNC_ADD);
           context._exokitBlendColor(highlight[0], highlight[1], highlight[2], highlight[3]);
@@ -741,26 +777,7 @@ const _fetchText = src => fetch(src)
     }
   } */
 
-  document.open();
-  document.write(htmlString);
-  document.close();
-
-  if (document.readyState !== 'complete') {
-    await new Promise((accept, reject) => {
-      document.addEventListener('readystatechange', () => {
-        if (document.readyState === 'complete') {
-          accept();
-        }
-      });
-    });
-  }
-  await new Promise((accept, reject) => {
-    const script = document.createElement('script');
-    script.onload = accept;
-    script.onerror = reject;
-    script.src = `data:application/javascript,1`;
-    document.body.appendChild(script);
-  });
+  await _replaceDocument(htmlString);
 
 })(self).then(() => {
   self._onbootstrap({
