@@ -73,14 +73,20 @@ const XREngineProto = {
     win.baseLayer = null;
     win.install = () => {
       if (!win.canvas) {
-        win.canvas = document.createElement('canvas');
-        win.canvas.width = GlobalContext.xrState.renderWidth[0] * 2;
-        win.canvas.height = GlobalContext.xrState.renderHeight[0];
-        win.canvas.style.width = '100%';
-        win.canvas.style.height = '100%';
-        win.canvas.addEventListener('mousedown', e => {
-          e.preventDefault();
-        });
+        // win.canvas = document.createElement('canvas');
+        if(document.getElementsByClassName("a-canvas")[0]) {
+          win.canvas = document.getElementsByClassName("a-canvas")[0];
+        } else {
+          win.canvas = document.createElement('canvas');
+          alert("Made new one.");
+        }
+        // win.canvas.width = GlobalContext.xrState.renderWidth[0] * 2;
+        // win.canvas.height = GlobalContext.xrState.renderHeight[0];
+        // win.canvas.style.width = '100%';
+        // win.canvas.style.height = '100%';
+        // win.canvas.addEventListener('mousedown', e => {
+        //   e.preventDefault();
+        // });
         win.canvas.addEventListener('mouseenter', e => {
           const {x, y, width, height} = win.canvas.getBoundingClientRect();
           GlobalContext.xrState.canvasViewport[0] = x;
@@ -88,11 +94,13 @@ const XREngineProto = {
           GlobalContext.xrState.canvasViewport[2] = width;
           GlobalContext.xrState.canvasViewport[3] = height;
         });
-        win.ctx = win.canvas.getContext(window.WebGL2RenderingContext ? 'webgl2' : 'webgl', {
+        win.ctx = win.canvas.$webgl2; if(0) getContext(window.WebGL2RenderingContext ? 'webgl2' : 'webgl', {
           antialias: true,
           alpha: true,
           xrCompatible: true,
         });
+        console.info("win.ctx: ", win.ctx);
+        
         win.ctx.bindFramebuffer = (_bindFramebuffer => function bindFramebuffer(target, fbo) { // XXX return the correct undone binding in gl.getParameter
           if (!fbo) {
             fbo = win.ctx.xrFramebuffer;
@@ -108,11 +116,11 @@ const XREngineProto = {
 
         if (this._canShadow) {
           if (!this.shadow) {
-            this.shadow = this.attachShadow({mode: 'closed'});
+            // this.shadow = this.attachShadow({mode: 'closed'});
           }
-          this.shadow.appendChild(win.canvas);
+          // this.shadow.appendChild(win.canvas);
         } else {
-          this.insertAdjacentElement('afterend', win.canvas);
+          // this.insertAdjacentElement('afterend', win.canvas);
         }
 
         this.dispatchEvent(new MessageEvent('canvas', {

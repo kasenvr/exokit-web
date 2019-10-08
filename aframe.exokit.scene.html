@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://aframe.io/releases/0.9.2/aframe.min.js"></script>
+    <script type=module src="http://localhost:6969/local-exokit-web/exokit-web/ew.js"></script>
+    <script defer src="./aframe-exokit-v2.js"></script>
+    
+    <script>
+    var kalilaContexts = [];
+    HTMLCanvasElement.prototype.getContext = (function(originalGetContext) { 
+        return myCustomGetContext;
+        function myCustomGetContext(a,b) {
+          console.info('getContext intercepted - - - ',a,b);
+          b = b || {};
+          b.xrCompatible = true;
+          b.alpha = true;
+          b.antialias = true;
+          b.depth = true;
+          b.powerPreference = "default";
+          b.premultipliedAlpha = true;
+          b.preserveDrawingBuffer = false;
+          b.stencil = true;
+
+             if(a === "webgl") {
+               a = "webgl2";
+             } 
+             if (this['$'+a]) return this['$'+a];
+             var context = originalGetContext.apply(this, arguments);
+             kalilaContexts.push({ canvas: this, arguments: [a,b], context: context });
+             this['$'+a] = context;
+             return context;
+        }
+    })(HTMLCanvasElement.prototype.getContext);
+    </script>
+    
+  </head>
+    <body>
+
+    <a-scene>
+      <a-box rotation="45 45 45" position="0 0 -2" color="tomato" depth="2" height="4" width="0.5"></a-box>
+      <a-box rotation="45 -45 45" position="0 0 -16" color="tomato" depth="2" height="4" width="0.5"></a-box>
+      <a-box rotation="45 -45 45" position="0 0 -32" color="tomato" depth="2" height="4" width="0.5"></a-box>
+
+      <a-xr-engine xr-engine wireframe scale="2 2 2" material="color: gray" geometry="primitive: box; width: 1; height: 1; depth: 1"  position="0 3 -5">
+        <!-- <a-xr-site wireframe scale=".95 .95 .95" material="color: magenta" geometry="primitive: box; width: 1; height: 1; depth: 1"  position="0 0 0">
+          <a-xr-iframe position="0 0 0" gltf-model="#a-xr-iframe"></a-xr-iframe>
+        </a-xr-site> -->
+      </a-xr-engine>
+
+      <a-box a-xr-test="asdfsdf" rotation="45 -45 45" position="0 0 -20" color="blue" depth="2" height="10" width="0.25"></a-box>
+
+      <a-sphere position="0 1.25 -1" radius="1.25" color="#EF2D5E"></a-sphere>
+        <a-cube position="-1 0.5 1" rotation="0 45 0" width="1" height="1" depth="1" color="#4CC3D9"></a-cube>
+        <a-cylinder position="1 0.75 1" radius="0.5" height="1.5" color="#FFC65D"></a-cylinder>
+        <a-plane rotation="-90 0 0" width="4" height="4" color="#7BC8A4"></a-plane>
+        <!-- <a-sky color="#333333"></a-sky> -->
+    </a-scene>
+  </body>
+
+</html>
