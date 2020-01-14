@@ -19,8 +19,15 @@ const _makeState = () => {
     vao: null,
 
     arrayBuffer: null,
-    renderbuffer: {},
-    framebuffer: {},
+    renderbuffer: {
+      [gl.RENDERBUFFER]: null,
+    },
+    framebuffer: hasWebGL2 ? {
+      [gl.READ_FRAMEBUFFER]: null,
+      [gl.DRAW_FRAMEBUFFER]: null,
+    } : {
+      [gl.FRAMEBUFFER]: null,
+    },
 
     blend: false,
     cullFace: false,
@@ -189,7 +196,6 @@ for (const k in WebGLRenderingContext.prototype) {
   } else {
     const {value} = o;
     if (typeof value === 'function') {
-      // const {getError} = WebGLRenderingContext.prototype;
       if (k === 'drawElements' || k === 'drawArrays' || k === 'drawElementsInstanced' || k === 'drawArraysInstanced' || k === 'clear') {
         ProxiedWebGLRenderingContext.prototype[k] = function() {
           if (window[symbols.mrDisplaysSymbol].vrDisplay.isPresenting) {
@@ -197,13 +203,18 @@ for (const k in WebGLRenderingContext.prototype) {
             return GlobalContext.proxyContext[k].apply(GlobalContext.proxyContext, arguments);
           }
         };
+      } else if (k === 'texImage2D' || k === 'texSubImage2D') {
+        ProxiedWebGLRenderingContext.prototype[k] = function(a, b, c, d, e, f, g, h, i) {
+          this.setProxyState();
+          if (i instanceof Float32Array) {
+            c = GlobalContext.proxyContext.RGBA32F;
+            return GlobalContext.proxyContext[k].call(GlobalContext.proxyContext, a, b, c, d, e, f, g, h, i);
+          } else {
+            return GlobalContext.proxyContext[k].apply(GlobalContext.proxyContext, arguments);
+          }
+        };
       } else {
         ProxiedWebGLRenderingContext.prototype[k] = function() {
-          /* const error = getError.call(this);
-          if (error) {
-            Error.stackTraceLimit = 300;
-            console.log('fn', error, !!GlobalContext.proxyContext, this.lol, k, Array.from(arguments), new Error().stack);
-          } */
           this.setProxyState();
           return GlobalContext.proxyContext[k].apply(GlobalContext.proxyContext, arguments);
         };
@@ -314,7 +325,8 @@ ProxiedWebGLRenderingContext.prototype.disable = (oldDisable => function disable
   }
 })(ProxiedWebGLRenderingContext.prototype.disable);
 ProxiedWebGLRenderingContext.prototype.clear = (oldClear => function clear() {
-  if (this._enabled.clear) {
+  const gl = GlobalContext.proxyContext;
+  if (this._enabled.clear || this.state.framebuffer[gl.DRAW_FRAMEBUFFER] !== null) {
     oldClear.apply(this, arguments);
   }
 })(ProxiedWebGLRenderingContext.prototype.clear);
@@ -336,11 +348,12 @@ ProxiedWebGLRenderingContext.prototype.setProxyState = function setProxyState() 
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, state.arrayBuffer);
-    for (const k in state.renderbuffer) {
-      gl.bindRenderbuffer(k, state.renderbuffer[k]);
-    }
-    for (const k in state.framebuffer) {
-      gl.bindFramebuffer(k, state.framebuffer[k]);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, state.renderbuffer[gl.RENDERBUFFER]);
+    if (hasWebGL2) {
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, state.framebuffer[gl.READ_FRAMEBUFFER]);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, state.framebuffer[gl.DRAW_FRAMEBUFFER]);
+    } else {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, state.framebuffer[gl.FRAMEBUFFER]);
     }
 
     if (this._enabled.blend) {
@@ -448,19 +461,25 @@ ProxiedWebGLRenderingContext.prototype.bindRenderbuffer = (_bindRenderbuffer => 
 })(ProxiedWebGLRenderingContext.prototype.bindRenderbuffer);
 ProxiedWebGLRenderingContext.prototype.deleteRenderbuffer = (_deleteRenderbuffer => function deleteRenderbuffer(rbo) {
   for (const k in this.state.renderbuffer) {
-    if (this.state.renderbuffer[k] = rbo) {
+    if (this.state.renderbuffer[k] === rbo) {
       this.state.renderbuffer[k] = null;
     }
   }
   return _deleteRenderbuffer.apply(this, arguments);
 })(ProxiedWebGLRenderingContext.prototype.deleteRenderbuffer);
 ProxiedWebGLRenderingContext.prototype.bindFramebuffer = (_bindFramebuffer => function bindFramebuffer(target, fbo) {
-  this.state.framebuffer[target] = fbo;
+  const gl = GlobalContext.proxyContext;
+  if (hasWebGL2 && target === gl.FRAMEBUFFER) {
+    this.state.framebuffer[gl.READ_FRAMEBUFFER] = fbo;
+    this.state.framebuffer[gl.DRAW_FRAMEBUFFER] = fbo;
+  } else {
+    this.state.framebuffer[target] = fbo;
+  }
   return _bindFramebuffer.apply(this, arguments);
 })(ProxiedWebGLRenderingContext.prototype.bindFramebuffer);
 ProxiedWebGLRenderingContext.prototype.deleteFramebuffer = (_deleteFramebuffer => function deleteFramebuffer(fbo) {
   for (const k in this.state.framebuffer) {
-    if (this.state.framebuffer[k] = fbo) {
+    if (this.state.framebuffer[k] === fbo) {
       this.state.framebuffer[k] = null;
     }
   }
